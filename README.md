@@ -3,13 +3,17 @@
 # <ruby>OFNI-MAKER<rt>おふに・めーかー</rt></ruby>
 
 **_Closet Virtual · Local-First · Inteligencia Artificial sin Nubes_**
+
 <br>
 
-<img src="https://img.shields.io/badge/Spring_Boot-3.4-green?style=flat-square&logo=spring&color=2D5016&labelColor=F5F0E6">
-<img src="https://img.shields.io/badge/Java-21-red?style=flat-square&logo=openjdk&color=C84B31&labelColor=F5F0E6">
-<img src="https://img.shields.io/badge/Flutter-3.29-blue?style=flat-square&logo=flutter&color=9B8B7A&labelColor=F5F0E6">
+<img src="https://img.shields.io/badge/Angular-19-red?style=flat-square&logo=angular&color=C84B31&labelColor=F5F0E6">
+<img src="https://img.shields.io/badge/Ionic-8-blue?style=flat-square&logo=ionic&color=3880FF&labelColor=F5F0E6">
+<img src="https://img.shields.io/badge/Capacitor-6-green?style=flat-square&logo=capacitor&color=119EFF&labelColor=F5F0E6">
+<img src="https://img.shields.io/badge/Spring_Boot-4.0-green?style=flat-square&logo=spring&color=2D5016&labelColor=F5F0E6">
+<img src="https://img.shields.io/badge/Java-25-red?style=flat-square&logo=openjdk&color=C84B31&labelColor=F5F0E6">
+<img src="https://img.shields.io/badge/Maven-3.9-purple?style=flat-square&logo=apachemaven&color=9B8B7A&labelColor=F5F0E6">
 <img src="https://img.shields.io/badge/ONNX_Runtime-1.19-orange?style=flat-square&color=D4A574&labelColor=F5F0E6">
-<img src="https://img.shields.io/badge/Ollama-Local-purple?style=flat-square&color=8B7355&labelColor=F5F0E6">
+<img src="https://img.shields.io/badge/Ollama-Local-brown?style=flat-square&color=8B7355&labelColor=F5F0E6">
 
 </div>
 
@@ -17,7 +21,7 @@
 
 ## About
 
-**OFNI-Maker** es un closet virtual con clasificación de prendas, extracción de paletas cromáticas, puntuación térmica y generación de outfits basada en el clima real de tu ciudad.
+**OFNI-Maker** es un closet virtual con clasificación automática de prendas, extracción de paletas cromáticas, puntuación térmica y generación de outfits basada en el clima real de tu ciudad.
 
 El nombre juega con la lectura inversa de *INFO* — porque este proyecto invierte la narrativa: en lugar de que la moda te consuma, tú le das forma a tu guardarropa con intención, espacio y claridad.
 
@@ -28,12 +32,12 @@ El nombre juega con la lectura inversa de *INFO* — porque este proyecto invier
 ```mermaid
 graph TB
     subgraph Usuario ["Usuario"]
-        Mobile["Flutter App\nDart · Riverpod · Drift"]
-        Web["PWA Flutter Web\nChrome · Safari · Edge"]
+        Mobile["Angular + Ionic App\nTypeScript · Capacitor · SQLite"]
+        Web["PWA Web\nChrome · Safari · Edge"]
     end
 
     subgraph Red ["Red Local · HTTP"]
-        API["Spring Boot API\nPuerto 8080 · Java 21"]
+        API["Spring Boot API\nPuerto 8080 · Java 25 · Maven"]
     end
 
     subgraph AI ["Servicios IA Local"]
@@ -64,7 +68,7 @@ graph TB
 sequenceDiagram
     autonumber
     actor U as Usuario
-    participant F as Flutter App
+    participant F as Angular App
     participant S as Spring Boot API
     participant B as withoutbg :9000
     participant O as Ollama Vision :11434
@@ -78,8 +82,8 @@ sequenceDiagram
     B-->>S: 200 OK + PNG sin fondo
     Note over S: Guarda processed en uploads/processed/
 
-    S->>S: ONNX Runtime · CUDA<br/>MobileNetV3-Small<br/>→ tipo, categoría, textura
-    Note over S: Inferencia nativa en JVM<br/>~200ms en RTX 4060 Ti
+    S->>S: ONNX Runtime · CUDA<br/>MobileNetV4<br/>→ tipo, categoría, textura
+    Note over S: Inferencia nativa en JVM<br/>~20ms en RTX 4060 Ti
 
     S->>S: OpenCV Java · K-Means<br/>→ 4 colores hex dominantes
     Note over S: CPU-only · ~50ms
@@ -101,67 +105,73 @@ sequenceDiagram
 erDiagram
     CLOTHING_ITEM {
         bigint id PK "IDENTITY"
-        varchar name "NOT NULL"
-        varchar type "ENUM: camiseta, pantalon, vestido, chaqueta, zapatos, accesorio"
-        varchar category "ENUM: top, bottom, full_body, outerwear, footwear, accessory"
-        varchar material "algodon, lino, cuero, jean, polyester, lana, etc"
+        varchar name "NULLABLE"
+        varchar type "ENUM"
+        varchar category "ENUM"
+        varchar material "ENUM"
         int thermal_score "1-5 · 1=fresco, 5=termico"
         int coverage_score "1-5 · 1=minimo, 5=maximo"
-        varchar season "verano, invierno, all_season"
-        varchar dominant_colors "JSON array ['#2D5016', '#F5F0E6', '#C84B31']"
-        varchar image_original "ruta relativa uploads/original/"
-        varchar image_processed "ruta relativa uploads/processed/"
-        text embedding "JSON array float[1280] · MobileNetV2 features"
+        varchar season "ENUM"
+        json dominant_colors "['#2D5016', '#F5F0E6']"
+        json embedding "float[1280]"
+        varchar image_original_path
+        varchar image_processed_path
         timestamp created_at
         timestamp updated_at
     }
 
     OUTFIT {
         bigint id PK "IDENTITY"
-        varchar name "NULLABLE · auto-generado o usuario"
-        varchar occasion "casual, formal, deportivo, date_night, work"
-        float weather_temp "°C al momento de generar"
-        varchar weather_condition "clear, rain, clouds, snow"
-        text color_palette "JSON · armonia calculada"
-        boolean is_favorite "DEFAULT FALSE"
-        text generation_notes "justificacion del LLM"
+        varchar name
+        varchar occasion "ENUM"
+        float weather_temp
+        varchar weather_condition
+        json color_palette
+        boolean is_favorite
+        text generation_notes
         timestamp created_at
     }
 
     OUTFIT_ITEM {
-        bigint outfit_id PK, FK
-        bigint clothing_item_id PK, FK
+        bigint id PK "IDENTITY"
+        bigint outfit_id FK
+        bigint clothing_item_id FK
+        int position "0=base, 1=media, 2=ext"
     }
 
-    CLOTHING_ITEM ||--o{ OUTFIT_ITEM : "belongs_to"
-    OUTFIT ||--o{ OUTFIT_ITEM : "contains"
+    CLOTHING_ITEM ||--o{ OUTFIT_ITEM : "aparece_en"
+    OUTFIT ||--o{ OUTFIT_ITEM : "compuesto_por"
 ```
 
 ---
 
 ## Stack Tecnológico
 
-| Capa | Herramienta | Versión | Rol en OFNI |
+| Capa | Tecnología | Versión | Rol en OFNI |
 |:---|:---|:---|:---|
-| **Backend** | Spring Boot | `3.4.x` | API REST, orquestación, inyección de dependencias |
-| | Java | `21` | LTS, Virtual Threads para concurrencia de IA |
-| | Spring AI | `1.0.0-M6+` | Abstracción LLM local via OllamaChatClient |
-| | Spring Data JPA | `3.4.x` | Persistencia H2/SQLite sin configuración externa |
-| | ONNX Runtime Java | `1.19.x` | Inferencia GPU/CPU de modelos vision dentro de la JVM |
-| | JavaCV / OpenCV | `4.9.x` | K-Means clustering para extracción de colores dominantes |
-| | Apache Commons Math | `3.6.x` | Algoritmo genético para optimización de outfits |
-| **IA Local** | Ollama | `latest` | Motor de inferencia local LLM + Vision |
-| | Qwen2.5-VL | `7B` | Clasificación visual profunda: material, estilo, textura |
-| | Mistral Small 3.1 | `24B` | Razonamiento de outfits, justificación estética |
-| | withoutbg | `app:latest` | Eliminación de fondo de prendas vía Docker |
-| | ComfyUI | `latest` *(Fase 3)* | Stable Diffusion + IP-Adapter para virtual try-on |
-| **Frontend** | Flutter | `3.29.x` | UI única para Android, iOS, Web PWA, Desktop |
-| | Dart | `3.6+` | Lenguaje tipado, compilación AOT nativa |
-| | Riverpod | `2.x` | Gestión de estado reactiva y cacheo local |
-| | Dio | `5.x` | Cliente HTTP con interceptores, retry, multipart |
-| | Drift | `2.x` | SQLite local para modo offline-first en móvil |
-| | image_picker | `latest` | Captura de cámara y selección de galería |
-| **Infra** | Docker Engine | `25.x+` | Contenerización de servicios auxiliares |
+| **Frontend** | Angular | `19.x` | UI declarativa, componentes reutilizables |
+| | Ionic Framework | `8.x` | Componentes móviles nativos, navegación, overlays |
+| | Capacitor | `6.x` | Bridge nativo: cámara, galería, filesystem, SQLite |
+| | TypeScript | `5.6+` | Tipado estático en todo el cliente |
+| | Tailwind CSS | `4.x` | Estilos utility-first, paleta OFNI custom |
+| | TanStack Query | `5.x` | Cacheo server-state, sincronización offline |
+| | Zustand | `4.x` | Estado global ligero |
+| **Backend** | Spring Boot | `4.0.x` | API REST, orquestación, virtual threads |
+| | Java | `25` | Virtual threads, records, pattern matching |
+| | Maven | `3.9.x` | Build, gestión de dependencias |
+| | Spring AI | `1.0.0-M6` | Abstracción LLM local (Ollama) |
+| | Spring Data JPA | `4.0.x` | Persistencia H2/SQLite |
+| | ONNX Runtime Java GPU | `1.19.x` | Inferencia MobileNetV4 en GPU dentro de la JVM |
+| | JavaCV / OpenCV | `1.5.10` | K-Means clustering extracción de colores |
+| **IA Local** | Ollama | `latest` | Motor inferencia local LLM + Vision |
+| | Qwen2.5-VL | `7B` | Clasificación visual profunda |
+| | Mistral Small | `24B` | Razonamiento outfits, justificación estética |
+| | withoutbg | `app:latest` | Eliminación fondo vía Docker |
+| | ComfyUI | `latest` *(Fase 3)* | Virtual try-on Stable Diffusion + IP-Adapter |
+| **ML Training** | Python · uv | `3.12+` | Entrenamiento MobileNetV4, export ONNX |
+| | timm | `latest` | Backbones pre-entrenados, fine-tuning |
+| | PyTorch | `2.4+` | Framework entrenamiento |
+| **Infra** | Docker Engine | `25.x+` | Contenerización servicios auxiliares |
 | | Docker Compose | `2.24+` | Orquestación multi-servicio local |
 | | NVIDIA Container Toolkit | `latest` | Passthrough GPU CUDA a contenedores |
 
@@ -171,120 +181,118 @@ erDiagram
 
 ```
 ofni-maker/
-├── .github/                          # Templates, CI/CD futuro
-│   └── ISSUE_TEMPLATE/
-├── ai-models/                        # Python · SOLO entrenamiento/export
+├── ai-models/                          # Python · SOLO entrenamiento/export
 │   ├── training/
 │   │   ├── clothing_classifier/
-│   │   │   ├── train_mobilenetv3.py       # Fine-tuning con DeepFashion2
+│   │   │   ├── train_mobilenetv4.py       # Fine-tuning con DeepFashion2
 │   │   │   ├── dataset_loader.py
 │   │   │   └── config.yaml
 │   │   └── export_to_onnx.py              # torch.onnx.export()
-│   └── notebooks/
-│       ├── color_extraction_analysis.ipynb
-│       └── outfit_similarity_embeddings.ipynb
+│   ├── notebooks/
+│   │   └── color_extraction_analysis.ipynb
+│   ├── data/                              # Datasets locales (gitignored)
+│   ├── checkpoints/                       # Pesos intermedios (gitignored)
+│   ├── pyproject.toml                     # uv deps: torch, timm, opencv-python
+│   ├── uv.lock
+│   └── .venv/
 │
-├── backend/                          # Spring Boot · API Principal
+├── backend/                              # Spring Boot · API Principal · Maven
 │   ├── src/main/java/com/ofni/
 │   │   ├── OfniMakerApplication.java
 │   │   ├── config/
-│   │   │   ├── WebConfig.java              # CORS para red local
-│   │   │   ├── OnnxConfig.java             # Bean: OrtEnvironment + CUDA
-│   │   │   ├── OllamaConfig.java           # Bean: ChatClient + ImageModel
-│   │   │   └── OpenMeteoConfig.java        # RestTemplate bean
+│   │   │   ├── WebConfig.java              # CORS red local
+│   │   │   ├── OnnxConfig.java             # OrtEnvironment + CUDA provider
+│   │   │   ├── OllamaConfig.java           # ChatClient + ImageModel
+│   │   │   └── OpenMeteoConfig.java        # RestClient proxy clima
 │   │   ├── controller/
-│   │   │   ├── ClothingController.java     # CRUD prendas + upload
+│   │   │   ├── ClothingController.java     # CRUD + upload multipart
 │   │   │   ├── OutfitController.java       # Generación + favoritos
 │   │   │   └── WeatherController.java      # Proxy Open-Meteo
 │   │   ├── service/
-│   │   │   ├── ClothingService.java        # Orquesta: bg removal + ONNX + KMeans + LLM
-│   │   │   ├── ColorService.java           # K-Means con OpenCV
-│   │   │   ├── ClassificationService.java  # ONNX MobileNetV3 inference
-│   │   │   ├── OutfitGenerationService.java # Embeddings + AG + LLM
+│   │   │   ├── ClothingService.java        # Orquesta pipeline completa
+│   │   │   ├── ColorService.java           # K-Means OpenCV
+│   │   │   ├── ClassificationService.java  # ONNX MobileNetV4
+│   │   │   ├── OutfitGenerationService.java # Embeddings + color theory + LLM
 │   │   │   ├── WeatherService.java         # Client Open-Meteo
 │   │   │   └── StorageService.java         # java.nio.file storage
 │   │   ├── model/
-│   │   │   ├── ClothingItem.java
-│   │   │   ├── Outfit.java
-│   │   │   ├── OutfitItem.java
-│   │   │   └── ColorPalette.java
+│   │   │   ├── ClothingItem.java           # Entity JPA
+│   │   │   ├── Outfit.java                 # Entity JPA
+│   │   │   ├── OutfitItem.java             # Entity JPA relación
+│   │   │   └── enums/                      # ClothingType, Category, Material, Season, Occasion
 │   │   ├── repository/
 │   │   │   ├── ClothingItemRepository.java
 │   │   │   └── OutfitRepository.java
 │   │   ├── dto/
-│   │   │   ├── ClothingUploadRequest.java
-│   │   │   ├── ClothingResponse.java
-│   │   │   ├── OutfitGenerateRequest.java
-│   │   │   └── OutfitResponse.java
+│   │   │   ├── ClothingUploadRequest.java  # record
+│   │   │   ├── ClothingResponse.java       # record
+│   │   │   ├── OutfitGenerateRequest.java  # record
+│   │   │   └── OutfitResponse.java         # record
 │   │   ├── inference/
 │   │   │   ├── OnnxClothingClassifier.java    # Sesión ONNX + preprocess
-│   │   │   └── ImagePreprocessor.java           # Resize 224x224 + Normalize
+│   │   │   └── ImagePreprocessor.java
 │   │   └── exception/
 │   │       └── GlobalExceptionHandler.java
 │   ├── src/main/resources/
 │   │   ├── application.yml
 │   │   ├── application-local.yml
 │   │   └── models/
-│   │       └── mobilenetv3_clothing.onnx        # Modelo exportado
+│   │       └── .gitkeep                     # Copiar aquí .onnx exportado
 │   ├── src/test/
-│   ├── Dockerfile
+│   ├── target/                              # Maven build (gitignored)
 │   ├── pom.xml
+│   ├── Dockerfile
 │   └── .dockerignore
 │
-├── frontend/                         # Flutter · Cliente universal
-│   ├── lib/
-│   │   ├── main.dart
-│   │   ├── config/
-│   │   │   ├── api_config.dart              # BaseURL según platform
-│   │   │   └── theme.dart                   # Tema minimalista japonés
-│   │   ├── models/
-│   │   │   ├── clothing_item.dart           # Copy de entidad Java
-│   │   │   ├── outfit.dart
-│   │   │   └── color_palette.dart
-│   │   ├── services/
-│   │   │   ├── api_client.dart              # Dio + interceptores
-│   │   │   ├── clothing_service.dart
-│   │   │   └── outfit_service.dart
-│   │   ├── providers/
-│   │   │   ├── clothing_provider.dart       # Riverpod StateNotifier
-│   │   │   └── outfit_provider.dart
-│   │   ├── screens/
-│   │   │   ├── home_screen.dart
-│   │   │   ├── wardrobe_screen.dart         # Galería con paletas
-│   │   │   ├── clothing_detail_screen.dart
-│   │   │   ├── upload_screen.dart           # Cámara + preview
-│   │   │   ├── outfit_generator_screen.dart # Clima + selector
-│   │   │   └── outfit_detail_screen.dart
-│   │   ├── widgets/
-│   │   │   ├── clothing_card.dart           # Tarjeta con hex colors
-│   │   │   ├── color_pill.dart              # Pastilla de color dominante
-│   │   │   ├── thermal_badge.dart           # Score 1-5 visual
-│   │   │   ├── outfit_composition.dart      # Layout de outfit armado
-│   │   │   └── zen_app_bar.dart             # AppBar minimalista
-│   │   └── utils/
-│   │       ├── constants.dart
-│   │       └── color_utils.dart             # Conversión hex/rgb/hsv
-│   ├── assets/
-│   │   ├── fonts/
-│   │   │   └── NotoSansJP/                # Tipografía japonesa
-│   │   └── images/
-│   │       └── logo_ofni.png
-│   ├── test/
-│   ├── pubspec.yaml
-│   ├── analysis_options.yaml
-│   └── web/
-│       ├── index.html
-│       ├── manifest.json                    # PWA config
-│       └── icons/
+├── frontend/                              # Angular + Ionic + Capacitor
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── index.html
+│   │   ├── styles.css                       # Tailwind imports + paleta CSS vars
+│   │   ├── app/
+│   │   │   ├── app.component.ts
+│   │   │   ├── app.routes.ts                # TanStack Router / Ionic tabs
+│   │   │   ├── config/
+│   │   │   │   └── api.config.ts            # BaseURL según platform
+│   │   │   ├── components/
+│   │   │   │   ├── clothing-card.component.ts
+│   │   │   │   ├── color-pill.component.ts
+│   │   │   │   └── zen-app-bar.component.ts
+│   │   │   ├── screens/
+│   │   │   │   ├── home.page.ts
+│   │   │   │   ├── wardrobe.page.ts
+│   │   │   │   ├── upload.page.ts           # Cámara Capacitor + preview
+│   │   │   │   └── outfit-generator.page.ts
+│   │   │   ├── services/
+│   │   │   │   ├── clothing.service.ts
+│   │   │   │   └── outfit.service.ts
+│   │   │   ├── stores/
+│   │   │   │   └── wardrobe.store.ts        # Zustand
+│   │   │   └── types/
+│   │   │       └── clothing.types.ts
+│   ├── public/
+│   │   ├── manifest.json                    # PWA
+│   │   └── icons/
+│   ├── android/                             # Generado por Capacitor
+│   ├── ios/                                 # Generado por Capacitor
+│   ├── angular.json
+│   ├── capacitor.config.ts
+│   ├── tailwind.config.ts                   # Paleta OFNI custom colors
+│   ├── tsconfig.json
+│   ├── vite.config.ts / angular.json
+│   ├── package.json
+│   └── .env.example
 │
-├── uploads/                          # Volúmen local (gitignored)
-│   ├── original/                     # Fotos crudos del usuario
-│   └── processed/                    # PNG sin fondo
+├── uploads/                                 # Volúmen local (gitignored)
+│   ├── original/
+│   └── processed/
 │
-├── docker-compose.yml                # Orquestación completa
-├── .env.example                    # Variables de entorno template
+├── docker-compose.yml                       # Orquestación completa
+├── .env.example                             # Variables entorno template
+├── schema.json                              # JSON schema configs
 ├── .gitignore
-└── README.md                         # Este documento
+├── LICENSE
+└── README.md                                # Este documento
 ```
 
 ---
@@ -293,23 +301,30 @@ ofni-maker/
 
 ### Prerrequisitos
 
-- **OS:** Linux (Arch/CachyOS recomendado), Windows 11, o macOS
+- **OS:** Linux (Arch/CachyOS), Windows 11, o macOS
 - **GPU:** NVIDIA con 8GB+ VRAM (RTX 4060 Ti ideal)
 - **RAM:** 16GB mínimo, 32GB recomendado
-- **Docker:** `25.x+` con Docker Compose y NVIDIA Container Toolkit
-- **Java:** OpenJDK 21 (`sudo pacman -S jdk21-openjdk`)
-- **Flutter:** `3.29.x` ([guía oficial](https://docs.flutter.dev/install))
+- **Java:** OpenJDK 25
+- **Maven:** 3.9.x (`choco install maven` en Windows, `pacman -S maven` en Arch)
+- **Node:** 22 LTS (`nvm install 22`)
+- **Docker:** 25.x+ con Docker Compose y NVIDIA Container Toolkit
+- **uv:** para Python (`pip install uv` o `curl -LsSf https://astral.sh/uv/install.sh | sh`)
 
-### 1. Clonar y levantar infraestructura
+### 1. Entorno Python (AI models)
 
 ```bash
-git clone https://github.com/tu-usuario/ofni-maker.git
-cd ofni-maker
+cd ai-models
+uv sync                      # instala torch, timm, opencv desde pyproject.toml
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
+```
 
-# Copiar variables de entorno
+### 2. Infraestructura Docker
+
+```bash
+cd ..                              # raíz del monorepo
 cp .env.example .env
 
-# Levantar servicios de IA (primera vez descarga modelos)
+# Levantar servicios de IA (primera vez descarga imágenes)
 docker compose up -d withoutbg ollama
 
 # Descargar modelos de visión y texto en Ollama
@@ -317,34 +332,45 @@ docker exec -it ofni-maker-ollama-1 ollama pull qwen2.5-vl:7b
 docker exec -it ofni-maker-ollama-1 ollama pull mistral-small:24b
 ```
 
-### 2. Backend Spring Boot
+### 3. Backend Spring Boot
 
 ```bash
 cd backend
 
-# Compilar y ejecutar con perfil local
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+# Compilar y ejecutar (perfil local, sin tests hasta tener implementaciones)
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local -DskipTests
 
-# O con Gradle:
-# ./gradlew bootRun --args='--spring.profiles.active=local'
+# En Windows:
+# mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local -DskipTests
 ```
 
-El API estará disponible en `http://localhost:8080`.
+El API estará en `http://localhost:8080`.
 
-### 3. Frontend Flutter (Web para desarrollo)
+### 4. Frontend Angular + Ionic (Web para desarrollo)
 
 ```bash
 cd frontend
-flutter pub get
-flutter run -d chrome --web-port 8081
+npm install
+
+# PWA en navegador
+ionic serve --port 8100
+
+# O build para preview
+ng serve
 ```
 
-Para desarrollo móvil, conecta tu teléfono por USB o usa el emulador:
+Para compilar app móvil nativa:
 ```bash
-flutter run
+# Android
+ionic cap sync android
+ionic cap open android
+
+# iOS (requiere macOS + Xcode)
+icap sync ios
+ionic cap open ios
 ```
 
-### 4. Verificación completa
+### 5. Verificación endpoint
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/clothing \
@@ -357,24 +383,23 @@ Respuesta esperada (`201 Created`):
 {
   "id": 1,
   "name": "Camiseta Básica",
-  "type": "camiseta_manga_corta",
-  "category": "top",
-  "material": "algodon",
+  "type": "CAMISETA_MANGA_CORTA",
+  "category": "TOP",
+  "material": "ALGODON",
   "thermalScore": 2,
   "coverageScore": 3,
-  "season": "verano",
+  "season": "VERANO",
   "dominantColors": ["#1E3A8A", "#F5F0E6"],
   "imageProcessed": "/uploads/processed/1_bgremoved.png",
-  "createdAt": "2026-04-28T17:41:00Z"
+  "createdAt": "2026-06-10T20:00:00Z"
 }
 ```
 
 ---
 
-## 🗺️ 路 · Docker Compose Completo
+## Docker Compose Completo
 
 ```yaml
-# docker-compose.yml
 services:
   ofni-api:
     build:
@@ -393,7 +418,7 @@ services:
       - OFNI_OLLAMA_URL=http://ollama:11434
       - OFNI_OLLAMA_VISION_MODEL=qwen2.5-vl:7b
       - OFNI_OLLAMA_TEXT_MODEL=mistral-small:24b
-      - OFNI_ONNX_MODEL_PATH=/app/models/mobilenetv3_clothing.onnx
+      - OFNI_ONNX_MODEL_PATH=/app/models/mobilenetv4_ofni_13cls.onnx
       - OFNI_ONNX_USE_CUDA=true
     depends_on:
       - withoutbg
@@ -406,9 +431,6 @@ services:
     container_name: ofni-withoutbg
     ports:
       - "9000:9000"
-    environment:
-      - WITHOUTBG_PORT=9000
-      - WITHOUTBG_HOST=0.0.0.0
     networks:
       - ofni-network
 
@@ -429,7 +451,7 @@ services:
     networks:
       - ofni-network
 
-  # Descomentar en Fase 3 (Virtual Try-On)
+  # Fase 3 (Virtual Try-On)
   # comfyui:
   #   image: yanwk/comfyui-boot:latest
   #   container_name: ofni-comfyui
@@ -451,8 +473,6 @@ services:
 volumes:
   ollama-models:
     driver: local
-  # comfyui-models:
-  #   driver: local
 
 networks:
   ofni-network:
@@ -461,55 +481,47 @@ networks:
 
 ---
 
-## Fases del Camino
+## Variables de Entorno
 
-```mermaid
-graph LR
-    subgraph Phase1 ["一期 · Haru · Primavera"]
-        direction TB
-        P1A["Closet Virtual Base"]
-        P1B["Upload + BG Removal"]
-        P1C["ONNX Classification"]
-        P1D["K-Means Colors"]
-    end
+```bash
+# .env.example
 
-    subgraph Phase2 ["二期 · Natsu · Verano"]
-        direction TB
-        P2A["Open-Meteo Integration"]
-        P2B["Outfit Engine v1"]
-        P2C["Color Theory + AG"]
-        P2D["Flutter PWA Release"]
-    end
+# --- Backend ---
+SPRING_PROFILES_ACTIVE=local
+OFNI_STORAGE_PATH=./uploads
+OFNI_ALLOWED_ORIGINS=http://localhost:8100,http://localhost:5173,http://192.168.1.42:8100
+OFNI_WITHOUTBG_URL=http://withoutbg:9000
+OFNI_OLLAMA_URL=http://ollama:11434
+OFNI_OLLAMA_VISION_MODEL=qwen2.5-vl:7b
+OFNI_OLLAMA_TEXT_MODEL=mistral-small:24b
+OFNI_ONNX_MODEL_PATH=./backend/src/main/resources/models/mobilenetv4_ofni_13cls.onnx
+OFNI_ONNX_USE_CUDA=true
 
-    subgraph Phase3 ["三期 · Aki · Otoño"]
-        direction TB
-        P3A["ComfyUI Try-On"]
-        P3B["IP-Adapter Workflow"]
-        P3C["Mobile Apps Stores"]
-    end
-
-    Phase1 -->|~3 semanas| Phase2
-    Phase2 -->|~4 semanas| Phase3
-
-    style Phase1 fill:#F5F0E6,stroke:#2D5016,stroke-width:2px
-    style Phase2 fill:#F5F0E6,stroke:#C84B31,stroke-width:2px
-    style Phase3 fill:#F5F0E6,stroke:#9B8B7A,stroke-width:2px
+# --- Frontend ---
+VITE_API_BASE_URL=http://localhost:8080
+# En móvil por WiFi:
+# VITE_API_BASE_URL=http://192.168.1.42:8080
 ```
 
-| Fase | Objetivo | Tecnologías Dominantes | Métrica de Éxito |
+---
+
+## Fases del Camino
+
+| Fase | Nombre | Objetivo | Métrica de Éxito |
 |:---|:---|:---|:---|
-| **Haru** | Tener un closet funcional donde subir una foto y verla clasificada con colores | Flutter, Spring Boot, withoutbg, ONNX, OpenCV | Subir 5 prendas, todas clasificadas correctamente |
-| **Natsu** | Generar outfits automáticos que respeten clima, color y estilo | Ollama LLM, embeddings, algoritmo genético, Open-Meteo | 3 outfits generados, al menos 1 usable realmente |
-| **Aki** | Ver cómo te queda el outfit antes de vestirte | ComfyUI, Stable Diffusion 1.5 Turbo, IP-Adapter | Imagen generada en <30s que se parece a la combinación |
+| **1 · Haru** | Closet Virtual Base | Subir foto, quitar fondo, clasificar con ONNX, extraer colores, guardar en galería | 5 prendas subidas, todas clasificadas correctamente |
+| **2 · Natsu** | Outfit Engine | Integrar clima Open-Meteo, generar outfits por embeddings + color theory + LLM | 3 outfits generados, al menos 1 usable realmente |
+| **3 · Aki** | Virtual Try-On | ComfyUI + Stable Diffusion + IP-Adapter para ver outfit puesto | Imagen generada en <30s que refleja la combinación real |
 
 ---
 
 ## Convenciones
 
-1. **Java:** Arquitectura hexagonal dentro de Spring. `model/` es dominio puro. `service/` es orquestación. `inference/` es infraestructura. Nunca mezcles ONNX en un Controller.
-2. **Flutter:** Un provider por screen. Los `services/` solo hacen HTTP, nunca lógica de presentación. Los modelos Dart deben tener `fromJson`/`toJson` idénticos a los DTOs Java.
-3. **AI Pipeline:** El flujo siempre es: *Imagen → withoutbg → ONNX (tipado) → OpenCV (colores) → Ollama Vision (contexto) → DB*. Nunca saltes pasos.
-4. **Docker:** Nunca commitees `uploads/` ni volúmenes de modelos. El `docker-compose.yml` debe poder levantarse con `docker compose up` desde cero en una máquina nueva con GPU.
+1. **Java:** `model/` es dominio puro (JPA). `service/` es orquestación. `inference/` es infraestructura. `dto/` son `record` inmutables. Nunca mezcles ONNX en un Controller.
+2. **Angular:** Smart containers en `screens/`. Presentational components en `components/`. Services solo hacen HTTP. Stores (Zustand) manejan estado global. Nunca lógica de negocio en templates.
+3. **AI Pipeline:** Flujo inmutable: *Imagen → withoutbg → ONNX (tipado) → OpenCV (colores) → Ollama Vision (contexto) → DB*. Nunca saltes pasos.
+4. **Build:** `uploads/` y `target/` nunca se commitean. El `docker-compose.yml` debe levantarse limpio en cualquier máquina con GPU.
+5. **Git:** `ai-models/checkpoints/`, `ai-models/data/`, `backend/target/`, `frontend/node_modules/`, `uploads/` están en `.gitignore`.
 
 ---
 
@@ -517,9 +529,9 @@ graph LR
 
 <br>
 
-*Hecho con intención, espacio y paciencia.*
+**OFNI-Maker · おふに・めーかー**
 
-**OFNI-Maker**
+_「少ないもので、豊かに」_
 
 <br>
 

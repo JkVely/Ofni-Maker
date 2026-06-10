@@ -1,0 +1,14 @@
+{
+  "description": "Esquema de datos para los ítems de vestuario del clóset virtual.",
+  "fields": [
+    {"name": "id", "type": "string", "description": "Identificador único del ítem."},
+    {"name": "nombre", "type": "string", "description": "Nombre común del ítem (Ej: Camisa de lino)."},
+    {"name": "tipo", "type": "string", "description": "Categoría del ítem (Parte superior, pantalón, zapatos, accesorios)."},
+    {"name": "estacion", "type": "string", "description": "Estación ideal (Primavera, Verano, Otoño, Invierno)."},
+    {"name": "material", "type": "string", "description": "Material principal (Lino, Algodón, Lana, Cuero)."},
+    {"name": "clima_ideal", "type": "string", "description": "Clima que mejor complementa (Calor, templado, frío)."},
+    {"name": "imagen_url", "type": "string", "description": "URL o ruta local a la imagen del ítem."}
+  ],
+  "version": "0.1.0",
+  "ultima_actualizacion": "2026-05-26"
+}

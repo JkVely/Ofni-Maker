@@ -1,0 +1,60 @@
+# Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+.idea/
+*.iml
+*.log
+
+# Maven Wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# Node
+node_modules/
+dist/
+.vite
+
+# Frontend build artifacts
+build/
+
+# Uploads (keep .gitkeep)
+uploads/*
+!uploads/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+
+# Misc
+*.onnx
+*.log
+
+# Python
+venv/
+.venv/
+ENV/
+
+.ipynb_checkpoints/
+
+# Backend dependencies
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Python dependencies
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+ai-models/data/*
+ai-models/models/*
+ai-models/checkpoints/*
+!ai-models/data/.gitkeep

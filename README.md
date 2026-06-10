@@ -162,6 +162,30 @@ ofni-maker/
 
 ---
 
+## Variables de Entorno
+
+```bash
+# .env.example
+
+# --- Backend ---
+SPRING_PROFILES_ACTIVE=local
+OFNI_STORAGE_PATH=./uploads
+OFNI_ALLOWED_ORIGINS=http://localhost:8100,http://localhost:5173,http://192.168.1.42:8100
+OFNI_WITHOUTBG_URL=http://withoutbg:9000
+OFNI_OLLAMA_URL=http://ollama:11434
+OFNI_OLLAMA_VISION_MODEL=qwen2.5-vl:7b
+OFNI_OLLAMA_TEXT_MODEL=mistral-small:24b
+OFNI_ONNX_MODEL_PATH=./backend/src/main/resources/models/mobilenetv4_ofni_13cls.onnx
+OFNI_ONNX_USE_CUDA=true
+
+# --- Frontend ---
+VITE_API_BASE_URL=http://localhost:8080
+# En móvil por WiFi:
+# VITE_API_BASE_URL=http://192.168.1.42:8080
+```
+
+---
+
 ## Stack
 
 | Capa | Tecnologia | Rol |

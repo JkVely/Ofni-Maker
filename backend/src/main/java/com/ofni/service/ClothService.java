@@ -1,19 +1,22 @@
 package com.ofni.service;
 
-import com.ofni.dto.ClothRequest;
-import com.ofni.dto.ClothResponse;
-import com.ofni.exception.ResourceNotFoundException;
-import com.ofni.model.ClothEntity;
-import com.ofni.repository.ClothRepository;
-import com.ofni.util.DeepFashion2Mapper;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.ofni.dto.ClothRequest;
+import com.ofni.dto.ClothResponse;
+import com.ofni.exception.ResourceNotFoundException;
+import com.ofni.model.Category;
+import com.ofni.model.ClothEntity;
+import com.ofni.repository.ClothRepository;
+import com.ofni.util.DeepFashion2Mapper;
 
 @Service
 @Transactional
@@ -23,6 +26,7 @@ public class ClothService {
     private final OnnxClassificationService onnx;
     private final ColorExtractionService colors;
     private final OllamaClient ollama;
+    private final BackgroundRemovalService backgroundRemoval;
     private final Path uploadDir;
 
     public ClothService(
@@ -30,36 +34,45 @@ public class ClothService {
         OnnxClassificationService onnx,
         ColorExtractionService colors,
         OllamaClient ollama,
+        BackgroundRemovalService backgroundRemoval,
         @Value("${app.uploads.directory}") String uploadDir
     ) {
         this.repository = repository;
         this.onnx = onnx;
         this.colors = colors;
         this.ollama = ollama;
+        this.backgroundRemoval = backgroundRemoval;
         this.uploadDir = Path.of(uploadDir);
     }
 
     public ClothResponse save(String originalFilename, byte[] imageBytes) {
         try {
-            var originalPath = uploadDir.resolve("original");
-            var processedPath = uploadDir.resolve("processed");
-            Files.createDirectories(originalPath);
-            Files.createDirectories(processedPath);
+            var originalDir = uploadDir.resolve("original");
+            var processedDir = uploadDir.resolve("processed");
+            Files.createDirectories(originalDir);
+            Files.createDirectories(processedDir);
 
             var uniqueName = UUID.randomUUID() + "_" + originalFilename;
-            var fullPath = originalPath.resolve(uniqueName);
-            Files.write(fullPath, imageBytes);
+            var originalPath = originalDir.resolve(uniqueName);
+            var processedPath = processedDir.resolve(uniqueName);
+            Files.write(originalPath, imageBytes);
 
-            var result = onnx.classify(fullPath.toString());
+            if (!backgroundRemoval.removeBackground(originalPath, processedPath)) {
+                Files.copy(originalPath, processedPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            var result = onnx.classify(originalPath.toString());
             var category = DeepFashion2Mapper.toCategory(result.predictedIndex());
             var slot = DeepFashion2Mapper.toSlot(category);
             var longSleeve = DeepFashion2Mapper.isLongSleeve(result.predictedIndex());
-            var palette = colors.extractPalette(fullPath.toString());
+            var palette = colors.extractPalette(originalPath.toString());
+            var name = nombrePrenda(category);
 
             var entity = ClothEntity.builder()
-                .name(category.name())
-                .originalImagePath(fullPath.toString())
-                .processedImagePath(fullPath.toString())
+                .name(name)
+                .description("Un/una %s.".formatted(name.toLowerCase()))
+                .originalImagePath(originalPath.toString())
+                .processedImagePath(processedPath.toString())
                 .category(category)
                 .slot(slot)
                 .colorPalette(palette)
@@ -71,12 +84,40 @@ public class ClothService {
 
             entity = repository.save(entity);
 
-            analyzeMaterialAsync(entity.getId(), fullPath.toString());
+            analyzeMaterialAsync(entity.getId(), originalPath.toString());
 
             return toResponse(entity);
         } catch (java.io.IOException e) {
             throw new RuntimeException("Failed to save image", e);
         }
+    }
+
+    private String nombrePrenda(Category cat) {
+        return switch (cat) {
+            case TSHIRT -> "Remera";
+            case SHIRT -> "Camisa";
+            case POLO -> "Polo";
+            case BLOUSE -> "Blusa";
+            case SWEATER -> "Sueter";
+            case HOODIE -> "Buzo";
+            case JACKET -> "Chaqueta";
+            case COAT -> "Abrigo";
+            case PANTS -> "Pantalon";
+            case JEANS -> "Jeans";
+            case SHORTS -> "Short";
+            case SKIRT -> "Falda";
+            case DRESS -> "Vestido";
+            case SHOES -> "Zapatos";
+            case SNEAKERS -> "Zapatillas";
+            case BOOTS -> "Botas";
+            case SANDALS -> "Sandalias";
+            case HAT -> "Gorro";
+            case SCARF -> "Bufanda";
+            case BELT -> "Cinturon";
+            case BAG -> "Bolso";
+            case ACCESSORY -> "Accesorio";
+            case OTHER -> "Prenda";
+        };
     }
 
     @Async
@@ -87,6 +128,8 @@ public class ClothService {
                 entity.setMaterial(material);
                 entity.setWarmthScore(WarmthCalculator.warmthScore(
                     entity.getCategory(), material, entity.getLongSleeve()));
+                entity.setDescription("Un/una %s de %s.".formatted(
+                    nombrePrenda(entity.getCategory()).toLowerCase(), material));
                 repository.save(entity);
             } catch (Exception e) {
                 entity.setMaterial("poliester");

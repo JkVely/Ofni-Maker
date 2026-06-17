@@ -21,6 +21,10 @@ app:
     model-path: ../ai-models/training/mobilenetv4_clothing.onnx
   ollama:
     base-url: http://localhost:11434
-    model: qwen2.5-vl:7b
+    model: qwen2.5vl:3b
   uploads:
     directory: ./uploads
+
+  withoutbg:
+    base-url: http://localhost:5000
+    enabled: false

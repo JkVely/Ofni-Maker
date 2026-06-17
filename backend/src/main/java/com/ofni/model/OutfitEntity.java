@@ -31,6 +31,9 @@ public class OutfitEntity extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private Season season;
 
+    @Enumerated(EnumType.STRING)
+    private Occasion occasion;
+
     private Double minTemperature;
 
     private Double maxTemperature;

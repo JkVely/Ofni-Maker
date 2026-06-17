@@ -33,6 +33,10 @@ Thumbs.db
 .env
 .env.local
 
+# H2 database files
+data/
+backend/data/
+
 # Misc
 *.onnx
 *.log

@@ -1,8 +1,16 @@
+spring:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
 app:
   onnx:
     model-path: /app/models/mobilenetv4_clothing.onnx
   uploads:
     directory: /app/uploads
+  ollama:
+    base-url: http://host.docker.internal:11434
   withoutbg:
     base-url: http://withoutbg:5000
     enabled: true

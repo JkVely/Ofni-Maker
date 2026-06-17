@@ -65,7 +65,7 @@ public class ClothService {
             var category = DeepFashion2Mapper.toCategory(result.predictedIndex());
             var slot = DeepFashion2Mapper.toSlot(category);
             var longSleeve = DeepFashion2Mapper.isLongSleeve(result.predictedIndex());
-            var palette = colors.extractPalette(originalPath.toString());
+            var palette = colors.extractPalette(processedPath.toString());
             var name = nombrePrenda(category);
 
             var entity = ClothEntity.builder()

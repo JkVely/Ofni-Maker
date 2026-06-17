@@ -1,14 +1,12 @@
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /app
 COPY pom.xml .
+RUN mvn -B dependency:go-offline
 COPY src ./src
-COPY mvnw .
-COPY .mvn .mvn
-RUN ./mvnw -B dependency:go-offline
-RUN ./mvnw -B package -DskipTests
+RUN mvn -B package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM eclipse-temurin:25-jdk AS runtime
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar", "--spring.profiles.active=local,docker"]

@@ -1,4 +1,22 @@
 services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=local,docker
+      - app.withoutbg.base-url=http://withoutbg:5000
+      - app.withoutbg.enabled=true
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+      - ./ai-models/training:/app/models
+    depends_on:
+      withoutbg:
+        condition: service_started
+    networks:
+      - ofni-net
+
   withoutbg:
     image: withoutbg/withoutbg:latest
     ports:
@@ -10,3 +28,9 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    networks:
+      - ofni-net
+
+networks:
+  ofni-net:
+    driver: bridge

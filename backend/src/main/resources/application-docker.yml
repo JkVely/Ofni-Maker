@@ -1,0 +1,8 @@
+app:
+  onnx:
+    model-path: /app/models/mobilenetv4_clothing.onnx
+  uploads:
+    directory: /app/uploads
+  withoutbg:
+    base-url: http://withoutbg:5000
+    enabled: true

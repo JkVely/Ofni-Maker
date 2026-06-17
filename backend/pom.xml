@@ -9,7 +9,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.0</version>
+        <version>4.0.7</version>
         <relativePath/>
     </parent>
 
@@ -53,7 +53,6 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Spring Boot Starters: NO necesitan <version> gracias al parent -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -121,7 +120,18 @@
 
     <build>
         <plugins>
-            <!-- Este plugin solito genera el fat JAR ejecutable -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

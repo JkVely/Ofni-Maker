@@ -84,7 +84,7 @@ public class ClothService {
 
             entity = repository.save(entity);
 
-            analyzeMaterialAsync(entity.getId(), originalPath.toString());
+            analyzeMaterialAsync(entity.getId(), processedPath.toString());
 
             return toResponse(entity);
         } catch (java.io.IOException e) {

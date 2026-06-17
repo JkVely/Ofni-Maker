@@ -20,6 +20,7 @@ import static org.bytedeco.opencv.global.opencv_imgcodecs.imread;
 public class BackgroundRemovalService {
 
     private static final double MIN_FOREGROUND_RATIO = 0.15;
+    private static final double MAX_WHITE_RATIO = 0.90;
 
     private final RestClient client;
     private final boolean enabled;
@@ -51,10 +52,7 @@ public class BackgroundRemovalService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Files.write(destPath, response.getBody());
-                if (!hasEnoughForeground(destPath)) {
-                    return false;
-                }
-                return true;
+                return hasEnoughForeground(destPath);
             }
             return false;
         } catch (IOException e) {
@@ -65,24 +63,46 @@ public class BackgroundRemovalService {
     private boolean hasEnoughForeground(Path imagePath) {
         try {
             var src = imread(imagePath.toString(), IMREAD_UNCHANGED);
-            if (src.empty() || src.channels() != 4) {
-                return true;
+            if (src.empty()) {
+                return false;
+            }
+            if (src.channels() != 4) {
+                return false;
             }
             var channels = new org.bytedeco.opencv.opencv_core.MatVector();
             opencv_core.split(src, channels);
             var alpha = channels.get(3);
+            var blue = channels.get(0);
+            var green = channels.get(1);
+            var red = channels.get(2);
             var total = (double) alpha.total();
             var foreground = 0L;
-            var idx = (ByteIndexer) alpha.createIndexer();
+            var whitePixels = 0L;
+            var alphaIdx = (ByteIndexer) alpha.createIndexer();
+            var rIdx = (ByteIndexer) red.createIndexer();
+            var gIdx = (ByteIndexer) green.createIndexer();
+            var bIdx = (ByteIndexer) blue.createIndexer();
             for (long i = 0; i < total; i++) {
-                if (idx.get(i) > 10) {
+                if (alphaIdx.get(i) > 10) {
                     foreground++;
+                    if (rIdx.get(i) > 240 && gIdx.get(i) > 240 && bIdx.get(i) > 240) {
+                        whitePixels++;
+                    }
                 }
             }
-            idx.release();
+            alphaIdx.release();
+            rIdx.release();
+            gIdx.release();
+            bIdx.release();
+            if (foreground == 0) {
+                return false;
+            }
+            if ((double) whitePixels / foreground > MAX_WHITE_RATIO) {
+                return false;
+            }
             return (foreground / total) >= MIN_FOREGROUND_RATIO;
         } catch (Exception e) {
-            return true;
+            return false;
         }
     }
 }

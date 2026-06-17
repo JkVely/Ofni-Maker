@@ -34,17 +34,20 @@ public class OllamaClient {
             """;
 
         var response = client.post()
-            .uri("/api/generate")
+            .uri("/api/chat")
             .body(Map.of(
                 "model", model,
-                "prompt", prompt,
-                "images", List.of(b64),
+                "messages", List.of(Map.of(
+                    "role", "user",
+                    "content", prompt,
+                    "images", List.of(b64)
+                )),
                 "stream", false
             ))
             .retrieve()
             .body(Map.class);
 
-        return extractResponse(response);
+        return extractChatResponse(response);
     }
 
     @SuppressWarnings("unchecked")
@@ -85,17 +88,20 @@ public class OllamaClient {
             """.formatted(occasion, temperature, clothesDesc.toString());
 
         var response = client.post()
-            .uri("/api/generate")
+            .uri("/api/chat")
             .body(Map.of(
                 "model", model,
-                "prompt", prompt,
-                "images", b64Images,
+                "messages", List.of(Map.of(
+                    "role", "user",
+                    "content", prompt,
+                    "images", b64Images
+                )),
                 "stream", false
             ))
             .retrieve()
             .body(Map.class);
 
-        return extractResponse(response);
+        return extractChatResponse(response);
     }
 
     private String encodeImage(String path) {
@@ -108,9 +114,11 @@ public class OllamaClient {
     }
 
     @SuppressWarnings("unchecked")
-    private String extractResponse(Map<?, ?> response) {
-        if (response != null && response.containsKey("response")) {
-            return (String) response.get("response");
+    private String extractChatResponse(Map<?, ?> response) {
+        if (response == null) return "";
+        var message = (Map<?, ?>) response.get("message");
+        if (message != null && message.containsKey("content")) {
+            return (String) message.get("content");
         }
         return "";
     }

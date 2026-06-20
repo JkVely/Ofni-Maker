@@ -13,8 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ofni.dto.ClothRequest;
 import com.ofni.dto.ClothResponse;
 import com.ofni.exception.ResourceNotFoundException;
-import com.ofni.model.Category;
+            import com.ofni.model.Category;
 import com.ofni.model.ClothEntity;
+import com.ofni.model.Slot;
 import com.ofni.repository.ClothRepository;
 import com.ofni.util.DeepFashion2Mapper;
 
@@ -62,11 +63,32 @@ public class ClothService {
             }
 
             var result = onnx.classify(originalPath.toString());
-            var category = DeepFashion2Mapper.toCategory(result.predictedIndex());
-            var slot = DeepFashion2Mapper.toSlot(category);
-            var longSleeve = DeepFashion2Mapper.isLongSleeve(result.predictedIndex());
             var palette = colors.extractPalette(processedPath.toString());
-            var name = nombrePrenda(category);
+
+            Category category;
+            Slot slot;
+            boolean longSleeve;
+            String name;
+
+            if (result.probabilities()[result.predictedIndex()] >= 0.5f) {
+                category = DeepFashion2Mapper.toCategory(result.predictedIndex());
+                slot = DeepFashion2Mapper.toSlot(category);
+                longSleeve = DeepFashion2Mapper.isLongSleeve(result.predictedIndex());
+                name = nombrePrenda(category);
+            } else {
+                try {
+                    var ollamaCat = ollama.classifyItem(originalPath.toString());
+                    category = Category.valueOf(ollamaCat.name());
+                    slot = Slot.valueOf(ollamaCat.slot());
+                    longSleeve = false;
+                    name = nombrePrenda(category);
+                } catch (Exception e) {
+                    category = Category.OTHER;
+                    slot = Slot.ACCESSORY;
+                    longSleeve = false;
+                    name = "Prenda";
+                }
+            }
 
             var entity = ClothEntity.builder()
                 .name(name)

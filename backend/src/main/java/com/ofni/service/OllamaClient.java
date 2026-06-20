@@ -104,6 +104,50 @@ public class OllamaClient {
         return extractChatResponse(response);
     }
 
+    public record OllamaCategory(String name, String slot) {}
+
+    public OllamaCategory classifyItem(String imagePath) {
+        var b64 = encodeImage(imagePath);
+        var prompt = """
+            Eres un experto en moda. Mira esta imagen y responde SOLO con
+            una categoria de las siguientes (elige la mas cercana):
+            TSHIRT, SHIRT, POLO, BLOUSE, SWEATER, HOODIE, JACKET, COAT,
+            PANTS, JEANS, SHORTS, SKIRT, DRESS,
+            SHOES, SNEAKERS, BOOTS, SANDALS,
+            HAT, SCARF, BELT, BAG, ACCESSORY, OTHER.
+
+            Formato exacto: CATEGORIA
+            """;
+
+        var response = client.post()
+            .uri("/api/chat")
+            .body(Map.of(
+                "model", model,
+                "messages", List.of(Map.of(
+                    "role", "user",
+                    "content", prompt,
+                    "images", List.of(b64)
+                )),
+                "stream", false
+            ))
+            .retrieve()
+            .body(Map.class);
+
+        var text = extractChatResponse(response).trim().toUpperCase();
+        return new OllamaCategory(text, inferSlot(text));
+    }
+
+    private String inferSlot(String category) {
+        return switch (category) {
+            case "TSHIRT", "SHIRT", "POLO", "BLOUSE", "SWEATER", "HOODIE", "DRESS" -> "TOP";
+            case "JACKET", "COAT" -> "OUTERWEAR";
+            case "PANTS", "JEANS", "SHORTS", "SKIRT" -> "BOTTOM";
+            case "SHOES", "SNEAKERS", "BOOTS", "SANDALS" -> "FOOTWEAR";
+            case "HAT" -> "HEAD";
+            default -> "ACCESSORY";
+        };
+    }
+
     private String encodeImage(String path) {
         try {
             var bytes = java.nio.file.Files.readAllBytes(java.nio.file.Path.of(path));

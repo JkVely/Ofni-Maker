@@ -40,6 +40,8 @@ backend/data/
 # Misc
 *.onnx
 *.log
+val_annotations.json
+model.onnx
 
 # Python
 venv/

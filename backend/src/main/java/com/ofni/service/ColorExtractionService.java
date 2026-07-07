@@ -2,10 +2,10 @@ package com.ofni.service;
 
 import org.bytedeco.javacpp.indexer.FloatIndexer;
 import org.bytedeco.javacpp.indexer.IntRawIndexer;
+import org.bytedeco.javacpp.indexer.UByteIndexer;
 import org.bytedeco.opencv.global.opencv_core;
 import org.bytedeco.opencv.opencv_core.Mat;
-import org.bytedeco.opencv.opencv_core.MatVector;
-import org.bytedeco.opencv.opencv_core.Scalar;
+import org.bytedeco.opencv.opencv_core.Rect;
 import org.bytedeco.opencv.opencv_core.TermCriteria;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
@@ -23,37 +23,74 @@ public class ColorExtractionService {
     private static final int K = 5;
 
     public List<String> extractPalette(String imagePath) {
+        return extractPalette(imagePath, null);
+    }
+
+    public List<String> extractPalette(String imagePath, Rect cropBox) {
         var src = imread(imagePath, IMREAD_UNCHANGED);
         if (src.empty()) {
             throw new IllegalArgumentException("Cannot read image: " + imagePath);
         }
 
-        var bgr = new Mat();
-        if (src.channels() == 4) {
-            var channels = new MatVector();
-            opencv_core.split(src, channels);
-            var bgrChannels = new MatVector(channels.get(0), channels.get(1), channels.get(2));
-            opencv_core.merge(bgrChannels, bgr);
-
-            var white = new Mat(src.size(), opencv_core.CV_8UC3, new Scalar(255.0, 255.0, 255.0, 0.0));
-            bgr.copyTo(white, channels.get(3));
-            bgr = white;
-        } else {
-            bgr = src;
-        }
+        var roi = (cropBox != null) ? new Mat(src, cropBox) : src;
 
         var rgb = new Mat();
-        cvtColor(bgr, rgb, COLOR_BGR2RGB);
+        Mat alpha;
 
-        var reshaped = rgb.reshape(1, rgb.rows() * rgb.cols());
-        var pixels = new Mat();
-        reshaped.convertTo(pixels, opencv_core.CV_32F);
+        if (roi.channels() == 4) {
+            var channels = new org.bytedeco.opencv.opencv_core.MatVector();
+            opencv_core.split(roi, channels);
+            var bgrChannels = new org.bytedeco.opencv.opencv_core.MatVector(
+                channels.get(0), channels.get(1), channels.get(2));
+            opencv_core.merge(bgrChannels, rgb);
+            alpha = channels.get(3);
+        } else {
+            rgb = roi.clone();
+            alpha = new Mat();
+        }
+
+        var rgbF = new Mat();
+        cvtColor(rgb, rgbF, COLOR_BGR2RGB);
+        rgbF.convertTo(rgbF, opencv_core.CV_32F);
+
+        var rgbIdx = (FloatIndexer) rgbF.createIndexer();
+        var alphaIdx = alpha.empty() ? null : (UByteIndexer) alpha.createIndexer();
+        var height = rgbF.rows();
+        var width = rgbF.cols();
+
+        var fgPixels = new ArrayList<float[]>();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                var isFg = alphaIdx == null || alphaIdx.get(y, x) > 128;
+                if (isFg) {
+                    fgPixels.add(new float[]{
+                        rgbIdx.get(y, x, 0),
+                        rgbIdx.get(y, x, 1),
+                        rgbIdx.get(y, x, 2)
+                    });
+                }
+            }
+        }
+        rgbIdx.release();
+
+        if (fgPixels.isEmpty()) {
+            return List.of("#808080");
+        }
+
+        var pixelsMat = new Mat(fgPixels.size(), 3, opencv_core.CV_32F);
+        var pxIdx = (FloatIndexer) pixelsMat.createIndexer();
+        for (int i = 0; i < fgPixels.size(); i++) {
+            pxIdx.put(i, 0, fgPixels.get(i)[0]);
+            pxIdx.put(i, 1, fgPixels.get(i)[1]);
+            pxIdx.put(i, 2, fgPixels.get(i)[2]);
+        }
+        pxIdx.release();
 
         var labels = new Mat();
         var centers = new Mat(K, 3, opencv_core.CV_32F);
         var criteria = new TermCriteria(TermCriteria.COUNT | TermCriteria.EPS, 10, 1.0);
 
-        opencv_core.kmeans(pixels, K, labels, criteria, 3, KMEANS_RANDOM_CENTERS, centers);
+        opencv_core.kmeans(pixelsMat, K, labels, criteria, 3, KMEANS_RANDOM_CENTERS, centers);
 
         var colorCounts = new ArrayList<ColorCount>();
         var centerIdx = (FloatIndexer) centers.createIndexer();
@@ -67,8 +104,7 @@ public class ColorExtractionService {
 
         var labelIdx = (IntRawIndexer) labels.createIndexer();
         for (int i = 0; i < labels.rows(); i++) {
-            int cluster = labelIdx.get(i, 0);
-            colorCounts.get(cluster).increment();
+            colorCounts.get(labelIdx.get(i, 0)).increment();
         }
         labelIdx.release();
 

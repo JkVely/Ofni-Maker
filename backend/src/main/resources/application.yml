@@ -18,13 +18,19 @@ server:
 
 app:
   onnx:
-    model-path: ../ai-models/training/mobilenetv4_clothing.onnx
+    model-path: ../ai-models/training/fashionpedia_yolos.onnx
   ollama:
     base-url: http://localhost:11434
     model: qwen2.5vl:3b
+    model-fast: gemma4:e4b
+    model-vision: qwen2.5vl:3b
   uploads:
     directory: ./uploads
 
   withoutbg:
     base-url: http://localhost:5000
     enabled: false
+
+  jwt:
+    secret: ${JWT_SECRET:OfniMaker2024SuperSecretKeyForJWTTokensChangeInProduction!}
+    expiration: ${JWT_EXPIRATION:86400000}

@@ -1,6 +1,7 @@
 package com.ofni.service;
 
 import com.ofni.dto.ClothResponse;
+import com.ofni.model.Category;
 import com.ofni.model.Occasion;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,30 +14,82 @@ import java.util.Map;
 public class OllamaClient {
 
     private final RestClient client;
-    private final String model;
+    private final String visionModel;
+    private final String fastModel;
 
     public OllamaClient(
         @Value("${app.ollama.base-url}") String baseUrl,
-        @Value("${app.ollama.model}") String model
+        @Value("${app.ollama.model}") String visionModel,
+        @Value("${app.ollama.model-fast}") String fastModel
     ) {
         this.client = RestClient.create(baseUrl);
-        this.model = model;
+        this.visionModel = visionModel;
+        this.fastModel = fastModel;
     }
 
-    /** Pregunta a la IA de que material esta hecha la prenda viendo la foto. */
-    public String analyzeMaterial(String imagePath) {
+    public String analyzeMaterial(String imagePath, Category category) {
+        var prompt = """
+            Eres un experto textil. Mira esta foto de una prenda y determina
+            su material principal observando la textura de la tela.
+
+            TIPO DETECTADO: %s
+
+            Responde SOLO con el material en espanol, en UNA SOLA PALABRA:
+            - Telas comunes: algodon, lino, seda, lana, denim, cuero,
+              poliester, viscosa, acrilico, nailon, gamuza, lona, caucho,
+              plumon, cachemira, polar, lyocell, spandex, terciopelo
+
+            IMPORTANTE: Mira la textura de la tela en la imagen.
+            NO respondas "poliester" por defecto.
+            Responde solo la palabra del material, nada mas.
+            """.formatted(categoriaEnEspanol(category));
+
+        return chatWithImage(imagePath, prompt);
+    }
+
+    private String categoriaEnEspanol(Category cat) {
+        return switch (cat) {
+            case TSHIRT -> "Remera";
+            case SHIRT -> "Camisa";
+            case POLO -> "Polo";
+            case BLOUSE -> "Blusa";
+            case SWEATER -> "Sueter";
+            case HOODIE -> "Buzo";
+            case JACKET -> "Chaqueta";
+            case COAT -> "Abrigo";
+            case PANTS -> "Pantalon";
+            case JEANS -> "Jean";
+            case SHORTS -> "Short";
+            case SKIRT -> "Falda";
+            case DRESS -> "Vestido";
+            case SHOES, SNEAKERS, BOOTS, SANDALS -> "Calzado";
+            case HAT -> "Gorro";
+            case SCARF -> "Bufanda";
+            case BELT -> "Cinturon";
+            case BAG -> "Bolso";
+            case ACCESSORY, OTHER -> "Accesorio";
+        };
+    }
+
+    public record OllamaCategory(String name, String slot) {}
+
+    public OllamaCategory classifyItem(String imagePath) {
         var b64 = encodeImage(imagePath);
         var prompt = """
-            Eres un experto en moda y textiles. Observa esta prenda de ropa.
-            Responde SOLO con el nombre del material principal en espanol,
-            en una sola palabra: ej: "algodon", "lana", "poliester", "cuero", "seda", etc.
-            Si no estas seguro, responde "poliester".
+            Eres un experto en moda. Mira esta imagen y responde SOLO con
+            una categoria de las siguientes (elige la mas cercana):
+            TSHIRT, SHIRT, POLO, BLOUSE, SWEATER, HOODIE, JACKET, COAT,
+            PANTS, JEANS, SHORTS, SKIRT, DRESS,
+            SHOES, SNEAKERS, BOOTS, SANDALS,
+            HAT, SCARF, BELT, BAG, ACCESSORY, OTHER.
+
+            Formato exacto: CATEGORIA
             """;
 
         var response = client.post()
             .uri("/api/chat")
             .body(Map.of(
-                "model", model,
+                "model", visionModel,
                 "messages", List.of(Map.of(
                     "role", "user",
                     "content", prompt,
@@ -47,7 +100,48 @@ public class OllamaClient {
             .retrieve()
             .body(Map.class);
 
-        return extractChatResponse(response);
+        var text = extractChatResponse(response).trim().toUpperCase();
+        return new OllamaCategory(text, inferSlot(text));
+    }
+
+    private String inferSlot(String category) {
+        return switch (category) {
+            case "TSHIRT", "SHIRT", "POLO", "BLOUSE", "SWEATER", "HOODIE", "DRESS" -> "TOP";
+            case "JACKET", "COAT" -> "OUTERWEAR";
+            case "PANTS", "JEANS", "SHORTS", "SKIRT" -> "BOTTOM";
+            case "SHOES", "SNEAKERS", "BOOTS", "SANDALS" -> "FOOTWEAR";
+            case "HAT" -> "HEAD";
+            default -> "ACCESSORY";
+        };
+    }
+
+    private String chatWithImage(String imagePath, String prompt) {
+        var b64 = encodeImage(imagePath);
+        try {
+            var response = client.post()
+                .uri("/api/chat")
+                .body(Map.of(
+                    "model", visionModel,
+                    "messages", List.of(Map.of(
+                        "role", "user",
+                        "content", prompt,
+                        "images", List.of(b64)
+                    )),
+                    "stream", false
+                ))
+                .retrieve()
+                .body(Map.class);
+
+            var text = extractChatResponse(response);
+            if (text != null && !text.isBlank()) {
+                var cleaned = text.toLowerCase()
+                    .replaceAll("[^a-záéíóúñ]", "").trim();
+                if (cleaned.length() <= 20 && !cleaned.isEmpty()) {
+                    return cleaned;
+                }
+            }
+        } catch (Exception ignored) {}
+        return "poliester";
     }
 
     @SuppressWarnings("unchecked")
@@ -61,11 +155,6 @@ public class OllamaClient {
             clothesDesc.append("- %s (%s, %s, colores: %s%n)"
                 .formatted(c.name(), c.category(), c.slot(), c.colorPalette()));
         }
-
-        var b64Images = availableClothes.stream()
-            .map(c -> c.processedImagePath())
-            .map(this::encodeImage)
-            .toList();
 
         var prompt = """
             Eres un asesor de moda personal. Tu tarea es crear el MEJOR outfit
@@ -90,11 +179,10 @@ public class OllamaClient {
         var response = client.post()
             .uri("/api/chat")
             .body(Map.of(
-                "model", model,
+                "model", fastModel,
                 "messages", List.of(Map.of(
                     "role", "user",
-                    "content", prompt,
-                    "images", b64Images
+                    "content", prompt
                 )),
                 "stream", false
             ))
@@ -102,50 +190,6 @@ public class OllamaClient {
             .body(Map.class);
 
         return extractChatResponse(response);
-    }
-
-    public record OllamaCategory(String name, String slot) {}
-
-    public OllamaCategory classifyItem(String imagePath) {
-        var b64 = encodeImage(imagePath);
-        var prompt = """
-            Eres un experto en moda. Mira esta imagen y responde SOLO con
-            una categoria de las siguientes (elige la mas cercana):
-            TSHIRT, SHIRT, POLO, BLOUSE, SWEATER, HOODIE, JACKET, COAT,
-            PANTS, JEANS, SHORTS, SKIRT, DRESS,
-            SHOES, SNEAKERS, BOOTS, SANDALS,
-            HAT, SCARF, BELT, BAG, ACCESSORY, OTHER.
-
-            Formato exacto: CATEGORIA
-            """;
-
-        var response = client.post()
-            .uri("/api/chat")
-            .body(Map.of(
-                "model", model,
-                "messages", List.of(Map.of(
-                    "role", "user",
-                    "content", prompt,
-                    "images", List.of(b64)
-                )),
-                "stream", false
-            ))
-            .retrieve()
-            .body(Map.class);
-
-        var text = extractChatResponse(response).trim().toUpperCase();
-        return new OllamaCategory(text, inferSlot(text));
-    }
-
-    private String inferSlot(String category) {
-        return switch (category) {
-            case "TSHIRT", "SHIRT", "POLO", "BLOUSE", "SWEATER", "HOODIE", "DRESS" -> "TOP";
-            case "JACKET", "COAT" -> "OUTERWEAR";
-            case "PANTS", "JEANS", "SHORTS", "SKIRT" -> "BOTTOM";
-            case "SHOES", "SNEAKERS", "BOOTS", "SANDALS" -> "FOOTWEAR";
-            case "HAT" -> "HEAD";
-            default -> "ACCESSORY";
-        };
     }
 
     private String encodeImage(String path) {

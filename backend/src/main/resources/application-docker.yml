@@ -6,11 +6,16 @@ spring:
 
 app:
   onnx:
-    model-path: /app/models/mobilenetv4_clothing.onnx
+    model-path: /app/models/fashionpedia_yolos.onnx
   uploads:
     directory: /app/uploads
   ollama:
     base-url: http://host.docker.internal:11434
+    model-fallback: qwen2.5vl:3b
   withoutbg:
     base-url: http://withoutbg:5000
     enabled: true
+
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:86400000}

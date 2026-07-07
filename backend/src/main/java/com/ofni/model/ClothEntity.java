@@ -53,4 +53,7 @@ public class ClothEntity extends BaseEntity {
     private Boolean favorite;
 
     private Boolean longSleeve;
+
+    @Column(nullable = false)
+    private Long userId;
 }

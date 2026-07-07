@@ -9,11 +9,13 @@ import java.util.List;
 @Repository
 public interface ClothRepository extends JpaRepository<ClothEntity, Long> {
 
-    List<ClothEntity> findByCategory(Category category);
+    List<ClothEntity> findByUserId(Long userId);
 
-    List<ClothEntity> findByFavoriteTrue();
+    List<ClothEntity> findByUserIdAndCategory(Long userId, Category category);
 
-    List<ClothEntity> findByWarmthScoreGreaterThanEqual(Integer minWarmth);
+    List<ClothEntity> findByUserIdAndFavoriteTrue(Long userId);
 
-    List<ClothEntity> findByWarmthScoreLessThanEqual(Integer maxWarmth);
+    List<ClothEntity> findByUserIdAndWarmthScoreGreaterThanEqual(Long userId, Integer minWarmth);
+
+    List<ClothEntity> findByUserIdAndWarmthScoreLessThanEqual(Long userId, Integer maxWarmth);
 }

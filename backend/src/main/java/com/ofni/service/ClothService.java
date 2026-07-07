@@ -13,18 +13,17 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ofni.dto.ClothRequest;
 import com.ofni.dto.ClothResponse;
 import com.ofni.exception.ResourceNotFoundException;
-            import com.ofni.model.Category;
+import com.ofni.model.Category;
 import com.ofni.model.ClothEntity;
 import com.ofni.model.Slot;
 import com.ofni.repository.ClothRepository;
-import com.ofni.util.DeepFashion2Mapper;
 
 @Service
 @Transactional
 public class ClothService {
 
     private final ClothRepository repository;
-    private final OnnxClassificationService onnx;
+    private final FashionpediaService fashionpedia;
     private final ColorExtractionService colors;
     private final OllamaClient ollama;
     private final BackgroundRemovalService backgroundRemoval;
@@ -32,28 +31,29 @@ public class ClothService {
 
     public ClothService(
         ClothRepository repository,
-        OnnxClassificationService onnx,
+        FashionpediaService fashionpedia,
         ColorExtractionService colors,
         OllamaClient ollama,
         BackgroundRemovalService backgroundRemoval,
         @Value("${app.uploads.directory}") String uploadDir
     ) {
         this.repository = repository;
-        this.onnx = onnx;
+        this.fashionpedia = fashionpedia;
         this.colors = colors;
         this.ollama = ollama;
         this.backgroundRemoval = backgroundRemoval;
         this.uploadDir = Path.of(uploadDir);
     }
 
-    public ClothResponse save(String originalFilename, byte[] imageBytes) {
+    public ClothResponse save(String originalFilename, byte[] imageBytes, Long userId) {
         try {
             var originalDir = uploadDir.resolve("original");
             var processedDir = uploadDir.resolve("processed");
             Files.createDirectories(originalDir);
             Files.createDirectories(processedDir);
 
-            var uniqueName = UUID.randomUUID() + "_" + originalFilename;
+            var safeFilename = sanitizeFilename(originalFilename);
+            var uniqueName = UUID.randomUUID() + "_" + safeFilename;
             var originalPath = originalDir.resolve(uniqueName);
             var processedPath = processedDir.resolve(uniqueName);
             Files.write(originalPath, imageBytes);
@@ -62,18 +62,28 @@ public class ClothService {
                 Files.copy(originalPath, processedPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
 
-            var result = onnx.classify(originalPath.toString());
-            var palette = colors.extractPalette(processedPath.toString());
+            var fpResult = fashionpedia.classify(originalPath.toString());
+
+            org.bytedeco.opencv.opencv_core.Rect cropBox = null;
+            if (fpResult.confidence() >= 0.4f && fpResult.boxW() > 0 && fpResult.boxH() > 0) {
+                int bx = Math.max(0, Math.round((fpResult.boxCx() - fpResult.boxW() / 2f) * fpResult.origW()));
+                int by = Math.max(0, Math.round((fpResult.boxCy() - fpResult.boxH() / 2f) * fpResult.origH()));
+                int bw = Math.min(fpResult.origW() - bx, Math.max(1, Math.round(fpResult.boxW() * fpResult.origW())));
+                int bh = Math.min(fpResult.origH() - by, Math.max(1, Math.round(fpResult.boxH() * fpResult.origH())));
+                cropBox = new org.bytedeco.opencv.opencv_core.Rect(bx, by, bw, bh);
+            }
+
+            var palette = colors.extractPalette(processedPath.toString(), cropBox);
 
             Category category;
             Slot slot;
             boolean longSleeve;
             String name;
 
-            if (result.probabilities()[result.predictedIndex()] >= 0.5f) {
-                category = DeepFashion2Mapper.toCategory(result.predictedIndex());
-                slot = DeepFashion2Mapper.toSlot(category);
-                longSleeve = DeepFashion2Mapper.isLongSleeve(result.predictedIndex());
+            if (fpResult.confidence() >= 0.4f) {
+                category = fpResult.category();
+                slot = fpResult.slot();
+                longSleeve = false;
                 name = nombrePrenda(category);
             } else {
                 try {
@@ -83,10 +93,10 @@ public class ClothService {
                     longSleeve = false;
                     name = nombrePrenda(category);
                 } catch (Exception e) {
-                    category = Category.OTHER;
-                    slot = Slot.ACCESSORY;
+                    category = fpResult.category();
+                    slot = fpResult.slot();
                     longSleeve = false;
-                    name = "Prenda";
+                    name = nombrePrenda(category);
                 }
             }
 
@@ -102,16 +112,25 @@ public class ClothService {
                 .coverageScore(WarmthCalculator.coverageScore(category))
                 .longSleeve(longSleeve)
                 .favorite(false)
+                .userId(userId)
                 .build();
 
             entity = repository.save(entity);
 
-            analyzeMaterialAsync(entity.getId(), processedPath.toString());
+            analyzeMaterialAsync(entity.getId(), processedPath.toString(), category);
 
             return toResponse(entity);
         } catch (java.io.IOException e) {
             throw new RuntimeException("Failed to save image", e);
         }
+    }
+
+    private static String sanitizeFilename(String name) {
+        if (name == null) return "unknown";
+        return name.replaceAll("[\\.\\./\\\\]", "_")
+            .replaceAll("[^a-zA-Z0-9._-]", "_")
+            .replaceAll("_{2,}", "_")
+            .replaceAll("^_|_$", "");
     }
 
     private String nombrePrenda(Category cat) {
@@ -143,10 +162,14 @@ public class ClothService {
     }
 
     @Async
-    void analyzeMaterialAsync(Long clothId, String imagePath) {
+    void analyzeMaterialAsync(Long clothId, String imagePath, Category detectedCategory) {
         repository.findById(clothId).ifPresent(entity -> {
             try {
-                var material = ollama.analyzeMaterial(imagePath);
+                var material = ollama.analyzeMaterial(imagePath, detectedCategory);
+                if (material == null || material.isBlank() || material.length() > 20
+                    || material.equalsIgnoreCase("poliester")) {
+                    material = "poliester";
+                }
                 entity.setMaterial(material);
                 entity.setWarmthScore(WarmthCalculator.warmthScore(
                     entity.getCategory(), material, entity.getLongSleeve()));
@@ -160,9 +183,12 @@ public class ClothService {
         });
     }
 
-    public ClothResponse update(Long id, ClothRequest request) {
+    public ClothResponse update(Long id, ClothRequest request, Long userId) {
         var entity = repository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Cloth", id));
+        if (!entity.getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("Cloth", id);
+        }
 
         if (request.name() != null)           entity.setName(request.name());
         if (request.description() != null)    entity.setDescription(request.description());
@@ -191,28 +217,34 @@ public class ClothService {
     }
 
     @Transactional(readOnly = true)
-    public ClothResponse findById(Long id) {
-        return repository.findById(id)
-            .map(this::toResponse)
+    public List<ClothResponse> findAllByUser(Long userId) {
+        return repository.findByUserId(userId).stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ClothResponse findById(Long id, Long userId) {
+        var entity = repository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Cloth", id));
+        if (!entity.getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("Cloth", id);
+        }
+        return toResponse(entity);
     }
 
     @Transactional(readOnly = true)
-    public List<ClothResponse> findAll() {
-        return repository.findAll().stream().map(this::toResponse).toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<ClothResponse> findBySlot(String slot) {
-        return repository.findAll().stream()
+    public List<ClothResponse> findBySlot(String slot, Long userId) {
+        return repository.findByUserId(userId).stream()
             .filter(c -> c.getSlot().name().equalsIgnoreCase(slot))
             .map(this::toResponse)
             .toList();
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, Long userId) {
         var entity = repository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Cloth", id));
+        if (!entity.getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("Cloth", id);
+        }
         repository.delete(entity);
     }
 

@@ -1,5 +1,6 @@
 package com.ofni.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -50,4 +51,7 @@ public class OutfitEntity extends BaseEntity {
     )
     @OrderColumn(name = "item_order")
     private List<ClothEntity> items;
+
+    @Column(nullable = false)
+    private Long userId;
 }

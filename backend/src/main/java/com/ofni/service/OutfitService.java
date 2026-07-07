@@ -44,8 +44,11 @@ public class OutfitService {
         this.mapper = new ObjectMapper();
     }
 
-    public OutfitResponse create(OutfitRequest request) {
+    public OutfitResponse create(OutfitRequest request, Long userId) {
         var items = clothRepository.findAllById(request.clothIds());
+        if (items.stream().anyMatch(c -> !c.getUserId().equals(userId))) {
+            throw new ResourceNotFoundException("Cloth", 0L);
+        }
         validateOutfit(items);
 
         var outfit = OutfitEntity.builder()
@@ -57,18 +60,19 @@ public class OutfitService {
             .maxTemperature(request.maxTemperature())
             .items(items)
             .generatedByAi(false)
+            .userId(userId)
             .build();
 
         return toResponse(outfitRepository.save(outfit));
     }
 
-    public OutfitResponse generate(OutfitGenerateRequest request) {
+    public OutfitResponse generate(OutfitGenerateRequest request, Long userId) {
         var weather = (request.latitude() != null && request.longitude() != null)
             ? weatherService.getCurrentTemperature(request.latitude(), request.longitude())
             : new WeatherService.WeatherResult(20.0, "°C");
 
-        var candidates = clothRepository.findByWarmthScoreGreaterThanEqual(
-            warmthFloor(weather.temperature()));
+        var candidates = clothRepository.findByUserIdAndWarmthScoreGreaterThanEqual(
+            userId, warmthFloor(weather.temperature()));
 
         var candidateResponses = candidates.stream()
             .map(this::toClothResponse)
@@ -79,6 +83,9 @@ public class OutfitService {
 
         var selectedIds = parseSelectedIds(aiResponse);
         var items = clothRepository.findAllById(selectedIds);
+        if (items.stream().anyMatch(c -> !c.getUserId().equals(userId))) {
+            throw new ResourceNotFoundException("Cloth", 0L);
+        }
         validateOutfit(items);
 
         var outfit = OutfitEntity.builder()
@@ -88,33 +95,40 @@ public class OutfitService {
             .maxTemperature(weather.temperature() + 5)
             .items(items)
             .generatedByAi(true)
+            .userId(userId)
             .build();
 
         return toResponse(outfitRepository.save(outfit));
     }
 
     @Transactional(readOnly = true)
-    public OutfitResponse findById(Long id) {
-        return outfitRepository.findById(id)
-            .map(this::toResponse)
+    public OutfitResponse findById(Long id, Long userId) {
+        var outfit = outfitRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Outfit", id));
+        if (!outfit.getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("Outfit", id);
+        }
+        return toResponse(outfit);
     }
 
     @Transactional(readOnly = true)
-    public List<OutfitResponse> findAll() {
-        return outfitRepository.findAll().stream().map(this::toResponse).toList();
+    public List<OutfitResponse> findAllByUser(Long userId) {
+        return outfitRepository.findByUserId(userId).stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<OutfitResponse> findByTemperature(Double temp) {
-        return outfitRepository.findByTemperatureRange(temp).stream()
+    public List<OutfitResponse> findByTemperature(Double temp, Long userId) {
+        return outfitRepository.findByUserIdAndTemperatureRange(userId, temp).stream()
             .map(this::toResponse)
             .toList();
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, Long userId) {
         var outfit = outfitRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Outfit", id));
+        if (!outfit.getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("Outfit", id);
+        }
         outfitRepository.delete(outfit);
     }
 

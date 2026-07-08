@@ -24,6 +24,10 @@ build/
 # Uploads (keep .gitkeep)
 uploads/*
 !uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/original/.gitkeep
+!backend/uploads/processed/.gitkeep
 
 # OS files
 .DS_Store
@@ -42,6 +46,9 @@ backend/data/
 *.log
 val_annotations.json
 model.onnx
+
+# Windows NUL device artifact
+nul
 
 # Python
 venv/
